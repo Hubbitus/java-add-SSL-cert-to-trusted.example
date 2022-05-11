@@ -1,0 +1,26 @@
+#!/usr/bin/bash
+
+CONTAINER=ssl-cacerts-build
+
+podman rm -vf ${CONTAINER}
+podman run -d -v$(pwd):/host --name ${CONTAINER} --entrypoint /usr/bin/bash quay.io/sdase/openjdk-runtime:11-hotspot -c 'sleep 1h'
+
+./DEV.ssl.check ${CONTAINER}
+
+set -xe
+
+# 1) get cert (by https://confluence.atlassian.com/kb/how-to-import-a-public-ssl-certificate-into-a-jvm-867025849.html):
+openssl s_client -connect datacatalog.example.com:443 -servername datacatalog.example.com             < /dev/null | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' > paaseu.example.com-cert.pem
+
+# 2) Import certificate(s)
+podman cp ${CONTAINER}:/opt/openjdk/lib/security/cacerts cacerts.initial
+podman exec -u root -it ${CONTAINER} keytool -keystore /opt/openjdk/lib/security/cacerts -storepass changeit -noprompt -trustcacerts -importcert -alias paaseu.example.com -file /host/paaseu.example.com-cert.pem
+# Warning: use -cacerts option to access cacerts keystore. So, there may be simplified way (but I prefer implicit path): podman exec -u root -it $CONTAINER} keytool -cacerts -storepass changeit -noprompt -trustcacerts -importcert -alias example-issuerCA -file /etc/ssl/certs/example-com-issuerCA.pem
+podman cp ${CONTAINER}:/opt/openjdk/lib/security/cacerts cacerts.withEXAMPLE
+
+# 3) cacerts.withEXAMPLE may be then included into some other containers like:
+# JIB containers plugin will pickup it here automatically
+cp cacerts.withEXAMPLE ../src/main/jib/opt/openjdk/lib/security/cacerts
+
+./DEV.ssl.check
+

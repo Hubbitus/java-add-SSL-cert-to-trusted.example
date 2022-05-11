@@ -1,0 +1,11 @@
+#!/usr/bin/bash
+
+# Any container in which will check (should be runned):
+CONTAINER=${1-datacatalog-stat-manual-debug}
+
+# See https://confluence.atlassian.com/kb/unable-to-connect-to-ssl-services-due-to-pkix-path-building-failed-error-779355358.html (-> https://gist.github.com/4ndrej/4547029)
+# wget https://confluence.atlassian.com/kb/files/779355358/779355357/1/1441897666313/SSLPoke.class
+
+podman cp SSLPoke.class ${CONTAINER}:SSLPoke.class
+podman exec -it ${CONTAINER} java SSLPoke keycloak-eco.paas.example.com 443
+
